@@ -79,10 +79,6 @@ You can use any BLE scanner app to test the connection, but for full functionali
 2. **Brightness Control:** Set the brightness of the LEDs (0-255).
 3. **Power Control:** Turn the lamp on or off.
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
-
 ## Acknowledgements
 
 - ESP32: [Espressif Systems](https://www.espressif.com/)

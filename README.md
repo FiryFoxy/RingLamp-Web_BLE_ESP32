@@ -1,106 +1,90 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 LED Controller</title>
-    <link
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-        rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <style>
-        body {
-            padding: 20px;
-        }
-        .color-preview {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            margin: 10px auto;
-        }
-    </style>
-</head>
-<body>
-    <div class="container text-center">
-        <h1>ESP32 LED Controller</h1>
-        <p id="status" class="text-muted">Status: Disconnected</p>
-        <button id="connect" class="btn btn-primary mb-3">Connect to ESP32</button>
+# ESP32 Ring Lamp with BLE Server
 
-        <div id="controls" style="display: none;">
-            <div class="mb-3">
-                <button id="ledOn" class="btn btn-success">Turn On LEDs</button>
-                <button id="ledOff" class="btn btn-danger">Turn Off LEDs</button>
-            </div>
-            <div class="mb-3">
-                <label for="colorPicker" class="form-label">Choose LED Color:</label>
-                <input type="color" id="colorPicker" class="form-control" value="#ffffff">
-                <div class="color-preview" id="colorPreview" style="background-color: #ffffff;"></div>
-            </div>
-            <div class="mb-3">
-                <label for="brightness" class="form-label">Brightness:</label>
-                <input type="range" id="brightness" class="form-range" min="1" max="100" value="50">
-            </div>
-        </div>
-    </div>
+This project implements a **Ring Lamp** controlled via Bluetooth Low Energy (BLE) using an **ESP32** microcontroller. The lamp can be controlled remotely through a mobile device or computer that supports BLE.
 
-    <script>
-        let device, server, ledCharacteristic;
-        const statusElement = document.getElementById("status");
-        const connectButton = document.getElementById("connect");
-        const controls = document.getElementById("controls");
-        const ledOnButton = document.getElementById("ledOn");
-        const ledOffButton = document.getElementById("ledOff");
-        const colorPicker = document.getElementById("colorPicker");
-        const colorPreview = document.getElementById("colorPreview");
-        const brightnessSlider = document.getElementById("brightness");
+## Features
 
-        async function connectBLE() {
-            try {
-                statusElement.textContent = "Status: Connecting...";
-                device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: ["19b10000-e8f2-537e-4f6c-d104768a1214"]
-                });
-                server = await device.gatt.connect();
-                const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
-                ledCharacteristic = await service.getCharacteristic("19b10002-e8f2-537e-4f6c-d104768a1214");
-                statusElement.textContent = "Status: Connected";
-                controls.style.display = "block";
+- **BLE Server:** The ESP32 acts as a BLE server to manage communication with BLE-enabled devices.
+- **Color Control:** Change the ring lamp's color remotely via BLE.
+- **Brightness Control:** Adjust the brightness of the ring lamp.
+- **Power Control:** Toggle the lamp on and off.
 
-                device.addEventListener("gattserverdisconnected", () => {
-                    statusElement.textContent = "Status: Disconnected";
-                    controls.style.display = "none";
-                });
-            } catch (error) {
-                console.error("Error connecting to BLE device:", error);
-                statusElement.textContent = "Status: Error Connecting";
-            }
-        }
+## Hardware Requirements
 
-        async function sendCommand(command) {
-            if (!ledCharacteristic) return;
-            await ledCharacteristic.writeValue(new Uint8Array(command));
-        }
+- **ESP32 Development Board** (e.g., ESP32 DevKitC)
+- **LED Ring** (Addressable LEDs like WS2812 or similar)
+- **Power Supply** for the LED ring
+- **Jump wires** for connections
 
-        connectButton.addEventListener("click", connectBLE);
+## Software Requirements
 
-        ledOnButton.addEventListener("click", () => sendCommand([1]));
-        ledOffButton.addEventListener("click", () => sendCommand([0]));
+- **Arduino IDE** (or PlatformIO)
+- **ESP32 Board Support** (install via the Arduino Board Manager)
+- **Adafruit NeoPixel Library** (or any other compatible library for addressable LEDs)
+- **BLE Library** (Built-in ESP32 BLE libraries)
 
-        colorPicker.addEventListener("input", (event) => {
-            const color = event.target.value;
-            colorPreview.style.backgroundColor = color;
-            const r = parseInt(color.substr(1, 2), 16);
-            const g = parseInt(color.substr(3, 2), 16);
-            const b = parseInt(color.substr(5, 2), 16);
-            sendCommand([67, r, g, b]); // 'C' command followed by RGB values
-        });
+## Installation
 
-        brightnessSlider.addEventListener("input", (event) => {
-            const brightness = parseInt(event.target.value);
-            console.log(`Brightness set to: ${brightness}`);
-            // Implement brightness adjustment on the ESP32 side if supported.
-        });
-    </script>
-</body>
-</html>
+### 1. Install Arduino IDE
+
+If you haven't installed Arduino IDE, download and install it from [here](https://www.arduino.cc/en/software).
+
+### 2. Install ESP32 Board
+
+1. Open Arduino IDE.
+2. Go to **File > Preferences**.
+3. In the **Additional Boards Manager URLs** field, add the following URL:  
+   `https://dl.espressif.com/dl/package_esp32_index.json`
+4. Go to **Tools > Board > Board Manager**.
+5. Search for `ESP32` and install the board package.
+
+### 3. Install Libraries
+
+- Open the Arduino IDE and go to **Sketch > Include Library > Manage Libraries**.
+- Install **Adafruit NeoPixel** and **ESP32 BLE Arduino** libraries.
+
+### 4. Upload the Code
+
+1. Connect your ESP32 to your computer using a USB cable.
+2. Open the `ESP32_Ring_Lamp_BLE_Server.ino` file in Arduino IDE.
+3. Select your ESP32 board under **Tools > Board**.
+4. Select the correct port under **Tools > Port**.
+5. Click **Upload** to flash the code to the ESP32.
+
+### 5. Wiring the Hardware
+
+- **ESP32 GPIO Pins** should be connected to the data input pin of your LED ring.
+- Ensure your **LED ring** is powered using a suitable power supply (e.g., 5V).
+- Make connections for **Ground** between the ESP32, LED ring, and power supply.
+
+## How It Works
+
+- The ESP32 initializes as a BLE server.
+- It creates characteristics to control the **color**, **brightness**, and **power** of the ring lamp.
+- A mobile app or BLE-enabled device can connect to the ESP32 and send commands to control the lamp.
+
+## Example Mobile App
+
+You can use any BLE scanner app to test the connection, but for full functionality, you can create your own app using platforms like **React Native**, **Flutter**, or native Android/iOS development, which connects to the ESP32 and sends commands to control the lamp's settings.
+
+## Code Explanation
+
+- The ESP32 sets up BLE services and characteristics for **color**, **brightness**, and **power control**.
+- The `Adafruit_NeoPixel` library is used to control the LED ring.
+- BLE write commands are mapped to actions such as changing color and brightness.
+
+### BLE Characteristics
+
+1. **Color Control:** Control the color of the LEDs via RGB values (e.g., red, green, blue).
+2. **Brightness Control:** Set the brightness of the LEDs (0-255).
+3. **Power Control:** Turn the lamp on or off.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+
+## Acknowledgements
+
+- ESP32: [Espressif Systems](https://www.espressif.com/)
+- Adafruit NeoPixel: [Adafruit Industries](https://www.adafruit.com/)
+- BLE Libraries: [ESP32 BLE Arduino](https://github.com/nkolban/ESP32_BLE_Arduino)

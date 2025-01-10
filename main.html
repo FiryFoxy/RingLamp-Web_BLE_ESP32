@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLE LED Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        .button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #colorPicker {
+            margin: 10px;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>BLE LED Control</h1>
+    <button class="button" id="connect">Connect to Device</button>
+    <br>
+    <button class="button" id="on">Turn On LEDs</button>
+    <button class="button" id="off">Turn Off LEDs</button>
+    <br>
+    <input type="color" id="colorPicker" />
+    <button class="button" id="setColor">Set LED Color</button>
+
+    <script>
+        let bleDevice;
+        let ledCharacteristic;
+
+        const LED_CONTROL_CHARACTERISTIC_UUID = "19b10002-e8f2-537e-4f6c-d104768a1214";
+
+        document.getElementById("connect").addEventListener("click", async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ["19b10000-e8f2-537e-4f6c-d104768a1214"]
+                });
+
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
+
+                ledCharacteristic = await service.getCharacteristic(LED_CONTROL_CHARACTERISTIC_UUID);
+
+                bleDevice = device;
+                bleDevice.addEventListener("gattserverdisconnected", onDisconnected);
+                alert("Connected to device!");
+            } catch (error) {
+                console.error("Failed to connect", error);
+                alert("Connection failed.");
+            }
+        });
+
+        document.getElementById("on").addEventListener("click", async () => {
+            if (ledCharacteristic) {
+                await ledCharacteristic.writeValue(new Uint8Array([1]));
+                alert("LEDs turned on");
+            }
+        });
+
+        document.getElementById("off").addEventListener("click", async () => {
+            if (ledCharacteristic) {
+                await ledCharacteristic.writeValue(new Uint8Array([0]));
+                alert("LEDs turned off");
+            }
+        });
+
+        document.getElementById("setColor").addEventListener("click", async () => {
+            if (ledCharacteristic) {
+                const color = document.getElementById("colorPicker").value;
+                const r = parseInt(color.substring(1, 3), 16);
+                const g = parseInt(color.substring(3, 5), 16);
+                const b = parseInt(color.substring(5, 7), 16);
+                await ledCharacteristic.writeValue(new Uint8Array([67, r, g, b])); // 'C' for color
+                alert(`Color set to ${color}`);
+            }
+        });
+
+        function onDisconnected() {
+            alert("Device disconnected.");
+        }
+    </script>
+</body>
+</html>

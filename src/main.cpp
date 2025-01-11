@@ -3,15 +3,18 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <Update.h>
 #include <Adafruit_NeoPixel.h>
 
 BLEServer* pServer = NULL;
 BLECharacteristic* pLedCharacteristic = NULL;
+BLECharacteristic* pOtaCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 
 #define SERVICE_UUID "19b10000-e8f2-537e-4f6c-d104768a1214"
 #define LED_CHARACTERISTIC_UUID "19b10002-e8f2-537e-4f6c-d104768a1214"
+#define OTA_CHARACTERISTIC_UUID "19b10003-e8f2-537e-4f6c-d104768a1214"
 
 #define LED_PIN1 15
 #define LED_PIN2 16
@@ -22,6 +25,52 @@ Adafruit_NeoPixel strip2(LED_COUNT, LED_PIN2, NEO_GRB + NEO_KHZ800);
 bool isOn = false;
 uint32_t currentColor1 = strip1.Color(255, 255, 255);
 uint32_t currentColor2 = strip2.Color(255, 255, 255);
+
+class MyServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+    deviceConnected = true;
+    Serial.println("Client connected");
+  }
+
+  void onDisconnect(BLEServer* pServer) {
+    deviceConnected = false;
+    Serial.println("Client disconnected");
+  }
+};
+
+class OtaCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic* pCharacteristic) {
+    static bool isOtaStarted = false;
+    static size_t bytesReceived = 0;
+
+    std::string data = pCharacteristic->getValue();
+    if (!isOtaStarted) {
+      Serial.println("Starting OTA update...");
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+        Serial.println("OTA begin failed!");
+        return;
+      }
+      isOtaStarted = true;
+    }
+
+    if (data.length() > 0) {
+      bytesReceived += data.length();
+      if (Update.write((uint8_t*)data.c_str(), data.length()) != data.length()) {
+        Serial.println("Error writing OTA data");
+      }
+    }
+
+    if (Update.hasError()) {
+      Serial.println("OTA update failed!");
+      return;
+    }
+
+    if (Update.isFinished()) {
+      Serial.printf("OTA update finished! Total bytes: %d\n", bytesReceived);
+      ESP.restart();
+    }
+  }
+};
 
 void updateLEDs() {
   Serial.println(isOn ? "Updating LEDs: ON" : "Updating LEDs: OFF");
@@ -101,13 +150,22 @@ void setup() {
 
     BLEService* pService = pServer->createService(SERVICE_UUID);
 
+    // LED Control Characteristic
     pLedCharacteristic = pService->createCharacteristic(
         LED_CHARACTERISTIC_UUID,
         BLECharacteristic::PROPERTY_WRITE
     );
-
     pLedCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
     pLedCharacteristic->addDescriptor(new BLE2902());
+
+    // OTA Characteristic
+    pOtaCharacteristic = pService->createCharacteristic(
+        OTA_CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_WRITE
+    );
+    pOtaCharacteristic->setCallbacks(new OtaCallbacks());
+    pOtaCharacteristic->addDescriptor(new BLE2902());
+
 
     pService->start();
 

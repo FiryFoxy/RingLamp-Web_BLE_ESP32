@@ -35,77 +35,95 @@
 
     <script>
         let device, server, ledCharacteristic, otaCharacteristic;
-
-        document.getElementById("connect").addEventListener("click", async () => {
+        const statusElement = document.getElementById("status");
+        const connectButton = document.getElementById("connect");
+        const controls = document.getElementById("controls");
+        const ledOnButton = document.getElementById("ledOn");
+        const ledOffButton = document.getElementById("ledOff");
+        const colorPicker = document.getElementById("colorPicker");
+        const colorPreview = document.getElementById("colorPreview");
+        const brightnessSlider = document.getElementById("brightness");
+        const firmwareFileInput = document.getElementById("firmwareFile");
+        const uploadFirmwareButton = document.getElementById("uploadFirmware");
+    
+        async function connectBLE() {
             try {
-                console.log("Requesting Bluetooth Device...");
-                const device = await navigator.bluetooth.requestDevice({
+                statusElement.textContent = "Status: Connecting...";
+                device = await navigator.bluetooth.requestDevice({
                     acceptAllDevices: true,
-                    optionalServices: ["19b10000-e8f2-537e-4f6c-d104768a1214"]
+                    optionalServices: ["19b10000-e8f2-537e-4f6c-d104768a1214", "19b10000-e8f2-537e-4f6c-d104768a1215"] // Include OTA service UUID
                 });
-        
-                console.log("Connecting to GATT server...");
-                const server = await device.gatt.connect();
-        
-                console.log("Getting primary service...");
-                const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
-        
-                console.log("Getting LED characteristic...");
-                const ledCharacteristic = await service.getCharacteristic("19b10002-e8f2-537e-4f6c-d104768a1214");
-        
-                console.log("Connected! Updating web page...");
-                document.getElementById("status").textContent = "Status: Connected";
-                document.getElementById("controls").style.display = "block";
-        
-                // Log disconnection events
+                server = await device.gatt.connect();
+                const ledService = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
+                ledCharacteristic = await ledService.getCharacteristic("19b10002-e8f2-537e-4f6c-d104768a1214");
+                const otaService = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1215");
+                otaCharacteristic = await otaService.getCharacteristic("19b10002-e8f2-537e-4f6c-d104768a1215");
+    
+                statusElement.textContent = "Status: Connected";
+                controls.style.display = "block";
+    
                 device.addEventListener("gattserverdisconnected", () => {
-                    console.log("Device disconnected");
-                    document.getElementById("status").textContent = "Status: Disconnected";
-                    document.getElementById("controls").style.display = "none";
+                    statusElement.textContent = "Status: Disconnected";
+                    controls.style.display = "none";
                 });
             } catch (error) {
-                console.error("Error during BLE connection:", error);
+                console.error("Error connecting to BLE device:", error);
+                statusElement.textContent = "Status: Error Connecting";
             }
-        });
-
-
-        document.getElementById("ledOn").addEventListener("click", () => {
-            ledCharacteristic.writeValue(new Uint8Array([1]));
-        });
-
-        document.getElementById("ledOff").addEventListener("click", () => {
-            ledCharacteristic.writeValue(new Uint8Array([0]));
-        });
-
-        document.getElementById("setColor").addEventListener("click", () => {
-            const color = document.getElementById("colorPicker").value;
-            const r = parseInt(color.substring(1, 3), 16);
-            const g = parseInt(color.substring(3, 5), 16);
-            const b = parseInt(color.substring(5, 7), 16);
-
-            // Send 'C' + R + G + B to the BLE device
-            ledCharacteristic.writeValue(new Uint8Array(['C'.charCodeAt(0), r, g, b]));
-        });
-
-        document.getElementById("uploadFirmware").addEventListener("click", async () => {
-            const fileInput = document.getElementById("firmwareFile");
-            if (fileInput.files.length === 0) {
+        }
+    
+        async function sendCommand(command) {
+            if (!ledCharacteristic) return;
+            await ledCharacteristic.writeValue(new Uint8Array(command));
+        }
+    
+        async function uploadFirmware() {
+            const file = firmwareFileInput.files[0];
+            if (!file) {
                 alert("Please select a firmware file.");
                 return;
             }
-
-            const file = fileInput.files[0];
-            const chunkSize = 512;
-            const fileBuffer = await file.arrayBuffer();
-            const totalChunks = Math.ceil(fileBuffer.byteLength / chunkSize);
-
-            for (let i = 0; i < totalChunks; i++) {
-                const chunk = fileBuffer.slice(i * chunkSize, (i + 1) * chunkSize);
-                await otaCharacteristic.writeValue(new Uint8Array(chunk));
+    
+            try {
+                statusElement.textContent = "Status: Uploading Firmware...";
+                const chunkSize = 512; // BLE MTU size
+                const firmware = await file.arrayBuffer();
+                const totalChunks = Math.ceil(firmware.byteLength / chunkSize);
+                const firmwareView = new Uint8Array(firmware);
+    
+                for (let i = 0; i < totalChunks; i++) {
+                    const chunk = firmwareView.slice(i * chunkSize, (i + 1) * chunkSize);
+                    await otaCharacteristic.writeValue(chunk);
+                    console.log(`Chunk ${i + 1}/${totalChunks} uploaded`);
+                }
+    
+                statusElement.textContent = "Status: Firmware Upload Complete";
+            } catch (error) {
+                console.error("Error uploading firmware:", error);
+                statusElement.textContent = "Status: Firmware Upload Failed";
             }
-
-            alert("Firmware upload completed!");
+        }
+    
+        connectButton.addEventListener("click", connectBLE);
+        ledOnButton.addEventListener("click", () => sendCommand([1]));
+        ledOffButton.addEventListener("click", () => sendCommand([0]));
+    
+        colorPicker.addEventListener("input", (event) => {
+            const color = event.target.value;
+            colorPreview.style.backgroundColor = color;
+            const r = parseInt(color.substr(1, 2), 16);
+            const g = parseInt(color.substr(3, 2), 16);
+            const b = parseInt(color.substr(5, 2), 16);
+            sendCommand([67, r, g, b]); // 'C' command followed by RGB values
         });
+    
+        brightnessSlider.addEventListener("input", (event) => {
+            const brightness = parseInt(event.target.value);
+            console.log(`Brightness set to: ${brightness}`);
+            // Implement brightness adjustment on the ESP32 side if supported.
+        });
+    
+        uploadFirmwareButton.addEventListener("click", uploadFirmware);
     </script>
 </body>
 </html>

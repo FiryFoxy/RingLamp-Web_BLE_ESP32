@@ -38,26 +38,36 @@
 
         document.getElementById("connect").addEventListener("click", async () => {
             try {
-                device = await navigator.bluetooth.requestDevice({
+                console.log("Requesting Bluetooth Device...");
+                const device = await navigator.bluetooth.requestDevice({
                     acceptAllDevices: true,
                     optionalServices: ["19b10000-e8f2-537e-4f6c-d104768a1214"]
                 });
-                server = await device.gatt.connect();
+        
+                console.log("Connecting to GATT server...");
+                const server = await device.gatt.connect();
+        
+                console.log("Getting primary service...");
                 const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
-                ledCharacteristic = await service.getCharacteristic("19b10002-e8f2-537e-4f6c-d104768a1214");
-                otaCharacteristic = await service.getCharacteristic("19b10003-e8f2-537e-4f6c-d104768a1214");
-
+        
+                console.log("Getting LED characteristic...");
+                const ledCharacteristic = await service.getCharacteristic("19b10002-e8f2-537e-4f6c-d104768a1214");
+        
+                console.log("Connected! Updating web page...");
                 document.getElementById("status").textContent = "Status: Connected";
                 document.getElementById("controls").style.display = "block";
-
+        
+                // Log disconnection events
                 device.addEventListener("gattserverdisconnected", () => {
+                    console.log("Device disconnected");
                     document.getElementById("status").textContent = "Status: Disconnected";
                     document.getElementById("controls").style.display = "none";
                 });
             } catch (error) {
-                console.error("Error:", error);
+                console.error("Error during BLE connection:", error);
             }
         });
+
 
         document.getElementById("ledOn").addEventListener("click", () => {
             ledCharacteristic.writeValue(new Uint8Array([1]));

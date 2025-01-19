@@ -18,7 +18,7 @@ class BLEDelegate:
 
     def did_discover_peripheral(self, p):
         self.discovered_devices.append(p)
-        self.ui_elements['device_list'].reload()
+        self.ui_elements['device_dropdown'].segments = [p.name for p in self.discovered_devices]
 
     def did_connect_peripheral(self, p):
         console.hud_alert('Connected')
@@ -47,10 +47,12 @@ class BLEDelegate:
                 self.ota_characteristic = c
         self.ui_elements['controls'].hidden = False
 
-    def device_selected(self, tableview, section, row):
-        selected_device = self.discovered_devices[row]
-        console.hud_alert('Connecting to selected device...')
-        cb.connect_peripheral(selected_device)
+    def device_selected(self, sender):
+        selected_index = sender.selected_index
+        if selected_index is not None:
+            selected_device = self.discovered_devices[selected_index]
+            console.hud_alert('Connecting to selected device...')
+            cb.connect_peripheral(selected_device)
 
     def send_command(self, command):
         if self.led_characteristic:
@@ -90,7 +92,8 @@ def upload_firmware_action(sender):
 
 ui_elements = {
     'controls': None,
-    'ble_delegate': None
+    'ble_delegate': None,
+    'device_dropdown': None
 }
 
 def main():
@@ -105,12 +108,9 @@ def main():
     connect_button.action = connect_action
     v.add_subview(connect_button)
     
-    device_list = ui.TableView(frame=(0, 110, 320, 200))
-    device_list.data_source = ui.ListDataSource([])
-    device_list.delegate = ui.ListDataSource([])
-    device_list.data_source.items = self.discovered_devices
-    device_list.delegate.tableview_did_select = self.device_selected
-    v.add_subview(device_list)
+    device_dropdown = ui.SegmentedControl(frame=(10, 110, 300, 40))
+    device_dropdown.action = self.device_selected
+    v.add_subview(device_dropdown)
 
     controls = ui.View(frame=(0, 320, 320, 400))
     controls.hidden = True
@@ -135,6 +135,7 @@ def main():
     
     ui_elements['controls'] = controls
     ui_elements['device_list'] = device_list
+    ui_elements['device_dropdown'] = device_dropdown
     ui_elements['ble_delegate'] = BLEDelegate(ui_elements)
     
     v.present('sheet')

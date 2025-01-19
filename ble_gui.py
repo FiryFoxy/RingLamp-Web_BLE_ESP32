@@ -11,14 +11,14 @@ OTA_CHAR_UUID = "19b10002-e8f2-537e-4f6c-d104768a1215"
 class BLEDelegate:
     def __init__(self, ui_elements):
         self.ui_elements = ui_elements
+        self.discovered_devices = []
         self.device = None
         self.led_characteristic = None
         self.ota_characteristic = None
 
     def did_discover_peripheral(self, p):
-        if SERVICE_UUID in p.services:
-            console.hud_alert('Device found, connecting...')
-            cb.connect_peripheral(p)
+        self.discovered_devices.append(p)
+        self.ui_elements['device_list'].reload()
 
     def did_connect_peripheral(self, p):
         console.hud_alert('Connected')
@@ -46,6 +46,11 @@ class BLEDelegate:
             elif c.uuid == OTA_CHAR_UUID:
                 self.ota_characteristic = c
         self.ui_elements['controls'].hidden = False
+
+    def device_selected(self, tableview, section, row):
+        selected_device = self.discovered_devices[row]
+        console.hud_alert('Connecting to selected device...')
+        cb.connect_peripheral(selected_device)
 
     def send_command(self, command):
         if self.led_characteristic:
@@ -100,7 +105,14 @@ def main():
     connect_button.action = connect_action
     v.add_subview(connect_button)
     
-    controls = ui.View(frame=(0, 110, 320, 400))
+    device_list = ui.TableView(frame=(0, 110, 320, 200))
+    device_list.data_source = ui.ListDataSource([])
+    device_list.delegate = ui.ListDataSource([])
+    device_list.data_source.items = self.discovered_devices
+    device_list.delegate.tableview_did_select = self.device_selected
+    v.add_subview(device_list)
+
+    controls = ui.View(frame=(0, 320, 320, 400))
     controls.hidden = True
     
     led_on_button = ui.Button(frame=(10, 10, 100, 40), title='Turn LED On')
@@ -122,6 +134,7 @@ def main():
     v.add_subview(controls)
     
     ui_elements['controls'] = controls
+    ui_elements['device_list'] = device_list
     ui_elements['ble_delegate'] = BLEDelegate(ui_elements)
     
     v.present('sheet')
